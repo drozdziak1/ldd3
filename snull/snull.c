@@ -119,13 +119,13 @@ void snull_teardown_pool(struct net_device *dev)
 {
 	struct snull_priv *priv = netdev_priv(dev);
 	struct snull_packet *pkt;
-    
+
 	while ((pkt = priv->ppool)) {
 		priv->ppool = pkt->next;
 		kfree (pkt);
 		/* FIXME - in-flight packets ? */
 	}
-}    
+}
 
 /*
  * Buffer/pool management.
@@ -135,7 +135,7 @@ struct snull_packet *snull_get_tx_buffer(struct net_device *dev)
 	struct snull_priv *priv = netdev_priv(dev);
 	unsigned long flags;
 	struct snull_packet *pkt;
-    
+
 	spin_lock_irqsave(&priv->lock, flags);
 	pkt = priv->ppool;
 	priv->ppool = pkt->next;
@@ -152,7 +152,7 @@ void snull_release_buffer(struct snull_packet *pkt)
 {
 	unsigned long flags;
 	struct snull_priv *priv = netdev_priv(pkt->dev);
-	
+
 	spin_lock_irqsave(&priv->lock, flags);
 	pkt->next = priv->ppool;
 	priv->ppool = pkt;
@@ -195,7 +195,7 @@ static void snull_rx_ints(struct net_device *dev, int enable)
 	priv->rx_int_enabled = enable;
 }
 
-    
+
 /*
  * Open and close
  */
@@ -204,7 +204,7 @@ int snull_open(struct net_device *dev)
 {
 	/* request_region(), request_irq(), ....  (like fops->open) */
 
-	/* 
+	/*
 	 * Assign the hardware address of the board: use "\0SNULx", where
 	 * x is 0 or 1. The first byte is '\0' to avoid being a multicast
 	 * address (the first byte of multicast addrs is odd).
@@ -267,7 +267,7 @@ void snull_rx(struct net_device *dev, struct snull_packet *pkt)
 		priv->stats.rx_dropped++;
 		goto out;
 	}
-	skb_reserve(skb, 2); /* align IP on 16B boundary */  
+	skb_reserve(skb, 2); /* align IP on 16B boundary */
 	memcpy(skb_put(skb, pkt->datalen), pkt->data, pkt->datalen);
 
 	/* Write metadata, and then pass to the receive level */
@@ -280,7 +280,7 @@ void snull_rx(struct net_device *dev, struct snull_packet *pkt)
   out:
 	return;
 }
-    
+
 
 /*
  * The poll implementation.
@@ -292,7 +292,7 @@ static int snull_poll(struct napi_struct *napi, int budget)
 	struct snull_priv *priv = container_of(napi, struct snull_priv, napi);
 	struct net_device *dev = priv->dev;
 	struct snull_packet *pkt;
-    
+
 	while (npackets < budget && priv->rx_queue) {
 		pkt = snull_dequeue_buf(dev);
 		skb = dev_alloc_skb(pkt->datalen + 2);
@@ -303,13 +303,13 @@ static int snull_poll(struct napi_struct *napi, int budget)
 			snull_release_buffer(pkt);
 			continue;
 		}
-		skb_reserve(skb, 2); /* align IP on 16B boundary */  
+		skb_reserve(skb, 2); /* align IP on 16B boundary */
 		memcpy(skb_put(skb, pkt->datalen), pkt->data, pkt->datalen);
 		skb->dev = dev;
 		skb->protocol = eth_type_trans(skb, dev);
 		skb->ip_summed = CHECKSUM_UNNECESSARY; /* don't check it */
 		netif_receive_skb(skb);
-		
+
         	/* Maintain stats */
 		npackets++;
 		priv->stats.rx_packets++;
@@ -325,8 +325,8 @@ static int snull_poll(struct napi_struct *napi, int budget)
 	/* We couldn't process everything. */
 	return npackets;
 }
-	    
-        
+
+
 /*
  * The typical interrupt entry point
  */
@@ -435,7 +435,7 @@ static void snull_hw_tx(char *buf, int len, struct net_device *dev)
 	struct snull_priv *priv;
 	u32 *saddr, *daddr;
 	struct snull_packet *tx_buffer;
-    
+
 	/* I am paranoid. Ain't I? */
 	if (len < sizeof(struct ethhdr) + sizeof(struct iphdr)) {
 		printk("snull: Hmm... packet too short (%i octets)\n",
@@ -511,7 +511,7 @@ int snull_tx(struct sk_buff *skb, struct net_device *dev)
 	int len;
 	char *data, shortpkt[ETH_ZLEN];
 	struct snull_priv *priv = netdev_priv(dev);
-	
+
 	data = skb->data;
 	len = skb->len;
 	if (len < ETH_ZLEN) {
@@ -520,7 +520,6 @@ int snull_tx(struct sk_buff *skb, struct net_device *dev)
 		len = ETH_ZLEN;
 		data = shortpkt;
 	}
-	dev->trans_start = jiffies; /* save the timestamp */
 
 	/* Remember the skb, so we can free it at interrupt time */
 	priv->skb = skb;
@@ -538,8 +537,11 @@ void snull_tx_timeout (struct net_device *dev)
 {
 	struct snull_priv *priv = netdev_priv(dev);
 
-	PDEBUG("Transmit timeout at %ld, latency %ld\n", jiffies,
-			jiffies - dev->trans_start);
+	/*
+	 *PDEBUG("Transmit timeout at %ld, latency %ld\n", jiffies,
+	 *                jiffies - dev->trans_start);
+	 */
+
         /* Simulate a transmission interrupt to get things moving */
 	priv->status = SNULL_TX_INTR;
 	snull_interrupt(0, dev, NULL);
@@ -551,7 +553,7 @@ void snull_tx_timeout (struct net_device *dev)
 
 
 /*
- * Ioctl commands 
+ * Ioctl commands
  */
 int snull_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
@@ -576,7 +578,7 @@ int snull_rebuild_header(struct sk_buff *skb)
 {
 	struct ethhdr *eth = (struct ethhdr *) skb->data;
 	struct net_device *dev = skb->dev;
-    
+
 	memcpy(eth->h_source, dev->dev_addr, dev->addr_len);
 	memcpy(eth->h_dest, dev->dev_addr, dev->addr_len);
 	eth->h_dest[ETH_ALEN-1]   ^= 0x01;   /* dest is us xor 1 */
@@ -610,7 +612,7 @@ int snull_change_mtu(struct net_device *dev, int new_mtu)
 	unsigned long flags;
 	struct snull_priv *priv = netdev_priv(dev);
 	spinlock_t *lock = &priv->lock;
-    
+
 	/* check ranges */
 	if ((new_mtu < 68) || (new_mtu > 1500))
 		return -EINVAL;
@@ -625,7 +627,7 @@ int snull_change_mtu(struct net_device *dev, int new_mtu)
 
 static const struct header_ops snull_header_ops = {
         .create  = snull_header,
-	.rebuild = snull_rebuild_header
+	/*.rebuild = snull_rebuild_header*/
 };
 
 static const struct net_device_ops snull_netdev_ops = {
@@ -650,11 +652,11 @@ void snull_init(struct net_device *dev)
     	/*
 	 * Make the usual checks: check_region(), probe irq, ...  -ENODEV
 	 * should be returned if no device found.  No resource should be
-	 * grabbed: this is done on open(). 
+	 * grabbed: this is done on open().
 	 */
 #endif
 
-    	/* 
+    	/*
 	 * Then, assign other fields in dev, using ether_setup() and some
 	 * hand assignments
 	 */
@@ -695,7 +697,7 @@ struct net_device *snull_devs[2];
 void snull_cleanup(void)
 {
 	int i;
-    
+
 	for (i = 0; i < 2;  i++) {
 		if (snull_devs[i]) {
 			unregister_netdev(snull_devs[i]);
@@ -717,9 +719,9 @@ int snull_init_module(void)
 
 	/* Allocate the devices */
 	snull_devs[0] = alloc_netdev(sizeof(struct snull_priv), "sn%d",
-			snull_init);
+			NET_NAME_ENUM, snull_init);
 	snull_devs[1] = alloc_netdev(sizeof(struct snull_priv), "sn%d",
-			snull_init);
+			NET_NAME_ENUM, snull_init);
 	if (snull_devs[0] == NULL || snull_devs[1] == NULL)
 		goto out;
 
@@ -731,7 +733,7 @@ int snull_init_module(void)
 		else
 			ret = 0;
    out:
-	if (ret) 
+	if (ret)
 		snull_cleanup();
 	return ret;
 }
